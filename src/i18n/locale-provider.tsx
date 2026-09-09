@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import type { Locale } from "@/i18n/config";
+import { isLocale, LOCALE_COOKIE, type Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries";
-import { setLocale as setLocaleAction } from "@/i18n/actions";
+import { toast } from "sonner";
 
 type LocaleContextValue = {
   locale: Locale;
@@ -27,15 +27,28 @@ export function LocaleProvider({
 
   const setLocale = React.useCallback(
     (next: Locale) => {
-      if (next === locale) return;
-      startTransition(async () => {
-        await setLocaleAction(next);
-        // Full reload so every Server Component (including the root
-        // layout's lang/dir) re-renders in the new locale.
-        window.location.reload();
+      if (!isLocale(next) || next === locale) return;
+      startTransition(() => {
+        try {
+          // This preference cookie is intentionally browser-readable. A Server
+          // Action would also rerender the current tree before the reload,
+          // introducing an unnecessary intermediate render/error boundary.
+          document.cookie = `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
+          const saved = document.cookie.split(";").some(
+            (cookie) => cookie.trim() === `${LOCALE_COOKIE}=${next}`,
+          );
+          if (!saved) {
+            toast.error(dictionary.public.genericErrorToast);
+            return;
+          }
+          // One navigation updates server content and the root lang/dir.
+          window.location.reload();
+        } catch {
+          toast.error(dictionary.public.genericErrorToast);
+        }
       });
     },
-    [locale],
+    [locale, dictionary],
   );
 
   const value = React.useMemo<LocaleContextValue>(

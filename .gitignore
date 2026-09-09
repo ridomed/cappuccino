@@ -10,8 +10,11 @@
 !.yarn/releases
 !.yarn/versions
 
+
 # testing
 /coverage
+src/app/test-error/
+
 
 # next.js
 /.next/
