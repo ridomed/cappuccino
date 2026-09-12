@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { BackButton } from "@/components/shared/back-button";
 import { getPurchaseOrderById } from "@/features/purchases/queries";
 import { getProductPickerOptions } from "@/features/products/queries";
+import { getSupplierOptions } from "@/features/suppliers/queries";
+import { PurchaseOrderSupplierSelect } from "@/features/purchases/components/purchase-order-supplier-select";
 import { PurchaseOrderStatusSelect } from "@/features/purchases/components/purchase-order-status-select";
 import { PurchaseOrderLanguageSelect } from "@/features/purchases/components/purchase-order-language-select";
 import { PurchaseOrderDateField } from "@/features/purchases/components/purchase-order-date-field";
@@ -18,7 +20,7 @@ import { RecordSupplierPaymentDialog } from "@/features/purchases/components/rec
 import { SupplierPaymentHistory } from "@/features/purchases/components/supplier-payment-history";
 import { PaymentStatusBadge } from "@/features/invoices/components/payment-status-badge";
 import { formatCurrency } from "@/lib/currency";
-import { requirePageAccess } from "@/lib/permissions";
+import { requirePageAccess, hasPermission } from "@/lib/permissions";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { formatMessage } from "@/i18n/format";
 
@@ -32,12 +34,15 @@ export default async function PurchaseOrderDetailPage({
   await requirePageAccess("PURCHASES_VIEW");
 
   const { id } = await params;
-  const [t, locale, order, productRows] = await Promise.all([
-    getDictionary(),
-    getLocale(),
-    getPurchaseOrderById(id),
-    getProductPickerOptions(),
-  ]);
+  const [t, locale, order, productRows, suppliers, canManageOrder] =
+    await Promise.all([
+      getDictionary(),
+      getLocale(),
+      getPurchaseOrderById(id),
+      getProductPickerOptions(),
+      getSupplierOptions(),
+      hasPermission("PURCHASES_MANAGE"),
+    ]);
   if (!order) notFound();
 
   const products = productRows.map((product) => ({
@@ -177,10 +182,21 @@ export default async function PurchaseOrderDetailPage({
               </Button>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <p>
-                <span className="text-muted-foreground">{t.suppliers.nameLabel}: </span>
-                {order.supplier.name}
-              </p>
+              {canManageOrder ? (
+                <div className="space-y-1.5">
+                  <span className="text-muted-foreground">{t.suppliers.nameLabel}: </span>
+                  <PurchaseOrderSupplierSelect
+                    purchaseOrderId={order.id}
+                    supplierId={order.supplierId}
+                    suppliers={suppliers}
+                  />
+                </div>
+              ) : (
+                <p>
+                  <span className="text-muted-foreground">{t.suppliers.nameLabel}: </span>
+                  {order.supplier.name}
+                </p>
+              )}
               {order.supplier.phone && (
                 <p>
                   <span className="text-muted-foreground">{t.orders.phoneLabel}: </span>
@@ -191,6 +207,23 @@ export default async function PurchaseOrderDetailPage({
                 purchaseOrderId={order.id}
                 date={order.createdAt}
               />
+              {order.supplierInvoiceNumber && (
+                <p>
+                  <span className="text-muted-foreground">
+                    {t.purchaseScan.supplierInvoiceNumberLabel}:{" "}
+                  </span>
+                  <span dir="ltr">{order.supplierInvoiceNumber}</span>
+                  {order.supplierInvoiceDate && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      ·{" "}
+                      {new Date(order.supplierInvoiceDate).toLocaleDateString(
+                        "fr-FR",
+                      )}
+                    </span>
+                  )}
+                </p>
+              )}
             </CardContent>
           </Card>
 

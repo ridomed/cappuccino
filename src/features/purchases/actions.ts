@@ -7,7 +7,9 @@ import { requirePermission, hasPermission } from "@/lib/permissions";
 import { destroyCloudinaryAsset } from "@/lib/cloudinary";
 import { computePaymentStatus } from "@/lib/money";
 import { isDeletePasswordValid, getDeletePasswordError } from "@/lib/delete-guard";
+import { isUniqueConstraintErrorOn } from "@/lib/prisma-errors";
 import { withDocumentNumber } from "@/lib/document-number";
+import { applyPurchaseReceipt } from "@/features/purchases/receive";
 import { getDictionary } from "@/i18n/server";
 import { formatMessage } from "@/i18n/format";
 import {
@@ -420,29 +422,9 @@ export async function updatePurchaseOrderStatus(
 
   try {
     if (willBeReceived && !wasReceived) {
-      await prisma.$transaction([
-        prisma.purchaseOrder.update({
-          where: { id },
-          data: { status, receivedAt: new Date() },
-        }),
-        ...order.items.map((item) =>
-          prisma.product.update({
-            where: { id: item.productId },
-            data: { quantity: { increment: item.quantity } },
-          }),
-        ),
-        ...order.items.map((item) =>
-          prisma.inventoryMovement.create({
-            data: {
-              productId: item.productId,
-              type: "IN",
-              quantity: item.quantity,
-              reference: order.orderNumber,
-              reason: "استلام أمر شراء",
-            },
-          }),
-        ),
-      ]);
+      // Shared with the AI invoice scanner's Confirm — see
+      // applyPurchaseReceipt in ./receive.ts.
+      await prisma.$transaction((tx) => applyPurchaseReceipt(tx, order));
     } else if (wasReceived && !willBeReceived) {
       await prisma.$transaction(async (tx) => {
         await tx.purchaseOrder.update({
@@ -527,6 +509,53 @@ export async function updatePurchaseOrderLanguage(
 }
 
 /**
+ * Reassigns which supplier a purchase order was placed with. Touches
+ * nothing but the `supplierId` column — payments, price history and stock
+ * are unaffected. Blocked if the target supplier already has an order with
+ * this order's `supplierInvoiceNumber` (the same guard the AI invoice
+ * scanner uses — see `@@unique([supplierId, supplierInvoiceNumber])`).
+ */
+export async function updatePurchaseOrderSupplier(
+  id: string,
+  supplierId: string,
+): Promise<ActionResult> {
+  const access = await requirePermission("PURCHASES_MANAGE");
+  if (!access.ok) return { error: access.error };
+  const t = await getDictionary();
+
+  if (!supplierId) return { error: t.purchases.validationError };
+
+  const order = await prisma.purchaseOrder.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!order) return { error: t.purchases.notFoundError };
+
+  const supplier = await prisma.supplier.findUnique({
+    where: { id: supplierId },
+    select: { id: true },
+  });
+  if (!supplier) return { error: t.purchases.validationError };
+
+  try {
+    await prisma.purchaseOrder.update({
+      where: { id },
+      data: { supplierId },
+    });
+  } catch (error) {
+    if (isUniqueConstraintErrorOn(error, "supplierId")) {
+      return { error: t.purchaseScan.duplicateInvoiceError };
+    }
+    throw error;
+  }
+
+  revalidatePath("/dashboard/purchases");
+  revalidatePath(`/dashboard/purchases/${id}`);
+  revalidatePath(`/dashboard/suppliers/${supplierId}`);
+  return { success: true };
+}
+
+/**
  * Sets a purchase order's date. This is `createdAt` — the value shown as
  * the order date everywhere (list, detail, print/PDF) and used for report
  * period filtering — so backdating moves the order to the right period.
@@ -603,7 +632,11 @@ export async function deletePurchaseOrder(id: string): Promise<ActionResult> {
 
   const order = await prisma.purchaseOrder.findUnique({
     where: { id },
-    include: { items: true, _count: { select: { returns: true } } },
+    include: {
+      items: true,
+      attachments: { select: { publicId: true, resourceType: true } },
+      _count: { select: { returns: true } },
+    },
   });
   if (!order) return { error: t.purchases.notFoundError };
   if (order._count.returns > 0) {
@@ -626,6 +659,14 @@ export async function deletePurchaseOrder(id: string): Promise<ActionResult> {
     }
     return { error: t.purchases.deleteError };
   }
+  // The order row (and its PurchaseAttachment rows, via onDelete: Cascade)
+  // is already gone — best-effort cleanup of the underlying Cloudinary
+  // files, same as every other entity's delete action.
+  await Promise.allSettled(
+    order.attachments.map((a) =>
+      destroyCloudinaryAsset(a.publicId, a.resourceType === "raw" ? "raw" : "image"),
+    ),
+  );
 
   revalidatePath("/dashboard/purchases");
   revalidatePath("/dashboard/inventory");
@@ -648,7 +689,11 @@ export async function deletePurchaseOrders(
     try {
       const order = await prisma.purchaseOrder.findUnique({
         where: { id },
-        include: { items: true, _count: { select: { returns: true } } },
+        include: {
+          items: true,
+          attachments: { select: { publicId: true, resourceType: true } },
+          _count: { select: { returns: true } },
+        },
       });
       if (!order) {
         failedCount++;
@@ -662,6 +707,11 @@ export async function deletePurchaseOrders(
         await reversePurchaseOrderStockOnDelete(tx, order);
         await tx.purchaseOrder.delete({ where: { id } });
       });
+      await Promise.allSettled(
+        order.attachments.map((a) =>
+          destroyCloudinaryAsset(a.publicId, a.resourceType === "raw" ? "raw" : "image"),
+        ),
+      );
     } catch {
       failedCount++;
     }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, ClipboardList } from "lucide-react";
+import { Plus, ClipboardList, ScanLine } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -34,10 +34,23 @@ export default async function PurchasesPage({
         title={t.admin.purchases}
         icon={ClipboardList}
         action={
-          <Button nativeButton={false} render={<Link href="/dashboard/purchases/new" />}>
-            <Plus className="size-4" />
-            {t.purchases.addButton}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/dashboard/purchases/scan" />}
+            >
+              <ScanLine className="size-4" />
+              {t.purchaseScan.actionButton}
+            </Button>
+            <Button
+              nativeButton={false}
+              render={<Link href="/dashboard/purchases/new" />}
+            >
+              <Plus className="size-4" />
+              {t.purchases.addButton}
+            </Button>
+          </div>
         }
       />
       <DataTableSearch placeholder={t.purchases.searchPlaceholder} />

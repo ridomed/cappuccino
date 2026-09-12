@@ -68,7 +68,7 @@ export function CategoryRail({
   ];
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col overflow-hidden rounded-xl border bg-card">
+    <aside className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-2">
         <ul className="space-y-1">
           {rows.map((row) => {

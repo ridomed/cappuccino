@@ -15,6 +15,7 @@ export async function getPurchaseOrdersPage({
     ? {
         OR: [
           { orderNumber: { contains: query, mode: "insensitive" } },
+          { supplierInvoiceNumber: { contains: query, mode: "insensitive" } },
           { supplier: { name: { contains: query, mode: "insensitive" } } },
         ],
       }

@@ -245,6 +245,8 @@ export default async function ProductProfilePage({
                   <TableHead>{t.inventory.columnType}</TableHead>
                   <TableHead>{t.inventory.columnQuantity}</TableHead>
                   <TableHead>{t.inventory.columnReason}</TableHead>
+                  <TableHead>{t.inventory.columnCustomer}</TableHead>
+                  <TableHead>{t.inventory.columnSupplier}</TableHead>
                   <TableHead>{t.inventory.columnDate}</TableHead>
                   <TableHead>{t.common.createdByLabel}</TableHead>
                 </TableRow>
@@ -260,6 +262,12 @@ export default async function ProductProfilePage({
                     <TableCell>{movement.quantity.toLocaleString(locale)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {movement.reason ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {movement.customerName ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {movement.supplierName ?? "—"}
                     </TableCell>
                     <TableCell>{formatDateTime(movement.createdAt)}</TableCell>
                     <TableCell className="text-muted-foreground">

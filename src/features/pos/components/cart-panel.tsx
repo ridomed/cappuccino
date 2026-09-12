@@ -70,7 +70,7 @@ export function CartPanel({
   const methodLabels = t.statusLabels.paymentMethod;
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col overflow-hidden rounded-xl border bg-card xl:w-96">
+    <aside className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
       {/* Customer */}
       <div className="flex items-start gap-2 border-b p-3">
         <CustomerAvatar name={customer.name} imageUrl={customer.imageUrl} seed={customer.id} />
@@ -206,15 +206,9 @@ export function CartPanel({
 
       {/* Totals + payment */}
       <div className="space-y-3 border-t p-3">
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between text-muted-foreground">
-            <span>{t.pos.subtotal}</span>
-            <span className="tabular-nums">{formatCurrency(total, locale)}</span>
-          </div>
-          <div className="flex justify-between text-base font-bold">
-            <span>{t.pos.total}</span>
-            <span className="tabular-nums">{formatCurrency(total, locale)}</span>
-          </div>
+        <div className="flex justify-between text-base font-bold">
+          <span>{t.pos.total}</span>
+          <span className="tabular-nums">{formatCurrency(total, locale)}</span>
         </div>
 
         <div className="grid grid-cols-2 gap-2">

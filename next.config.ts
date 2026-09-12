@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // pdfjs-dist and @napi-rs/canvas power the purchase-invoice scanner's
+  // server-side PDF rasterization (src/features/purchases/pdf-render.ts).
+  // @napi-rs/canvas ships a native .node binary and pdfjs pulls in worker
+  // files — both must load as real node_modules at runtime, not be bundled.
+  serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist"],
   images: {
     remotePatterns: [
       {

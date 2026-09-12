@@ -443,6 +443,67 @@ export async function getProductCustomersPage({
 
 const PRODUCT_PROFILE_HISTORY_SIZE = 20;
 
+// InventoryMovement.reference holds a document number whose prefix
+// (see src/lib/document-number.ts) says which table it points at; an
+// Invoice reference is the invoice's own cuid and carries no prefix.
+// Resolving it here lets the movement log show who the stock actually
+// moved for without adding a customer/supplier column to the model.
+async function resolveMovementParties(references: (string | null)[]) {
+  const refs = [...new Set(references.filter((r): r is string => !!r))];
+  const map = new Map<string, { customerName?: string; supplierName?: string }>();
+  if (refs.length === 0) return map;
+
+  const poRefs = refs.filter((r) => r.startsWith("PO-"));
+  const orderRefs = refs.filter((r) => r.startsWith("ORD-"));
+  const srRefs = refs.filter((r) => r.startsWith("SR-"));
+  const prRefs = refs.filter((r) => r.startsWith("PR-"));
+  const invoiceRefs = refs.filter(
+    (r) => !r.startsWith("PO-") && !r.startsWith("ORD-") && !r.startsWith("SR-") && !r.startsWith("PR-"),
+  );
+
+  const [purchaseOrders, orders, salesReturns, purchaseReturns, invoices] =
+    await Promise.all([
+      poRefs.length
+        ? prisma.purchaseOrder.findMany({
+            where: { orderNumber: { in: poRefs } },
+            select: { orderNumber: true, supplier: { select: { name: true } } },
+          })
+        : [],
+      orderRefs.length
+        ? prisma.order.findMany({
+            where: { orderNumber: { in: orderRefs } },
+            select: { orderNumber: true, customerName: true },
+          })
+        : [],
+      srRefs.length
+        ? prisma.salesReturn.findMany({
+            where: { returnNumber: { in: srRefs } },
+            select: { returnNumber: true, invoice: { select: { customerName: true } } },
+          })
+        : [],
+      prRefs.length
+        ? prisma.purchaseReturn.findMany({
+            where: { returnNumber: { in: prRefs } },
+            select: { returnNumber: true, supplier: { select: { name: true } } },
+          })
+        : [],
+      invoiceRefs.length
+        ? prisma.invoice.findMany({
+            where: { id: { in: invoiceRefs } },
+            select: { id: true, customerName: true },
+          })
+        : [],
+    ]);
+
+  for (const po of purchaseOrders) map.set(po.orderNumber, { supplierName: po.supplier.name });
+  for (const o of orders) map.set(o.orderNumber, { customerName: o.customerName });
+  for (const sr of salesReturns) map.set(sr.returnNumber, { customerName: sr.invoice.customerName });
+  for (const pr of purchaseReturns) map.set(pr.returnNumber, { supplierName: pr.supplier.name });
+  for (const inv of invoices) map.set(inv.id, { customerName: inv.customerName });
+
+  return map;
+}
+
 export async function getProductProfile(id: string) {
   const product = await prisma.product.findUnique({
     where: { id },
@@ -484,9 +545,19 @@ export async function getProductProfile(id: string) {
     }),
   ]);
 
+  const parties = await resolveMovementParties(movements.map((m) => m.reference));
+
   return {
     product,
-    movements: movements.map((movement) => ({ ...movement, quantity: movement.quantity.toNumber() })),
+    movements: movements.map((movement) => {
+      const party = movement.reference ? parties.get(movement.reference) : undefined;
+      return {
+        ...movement,
+        quantity: movement.quantity.toNumber(),
+        customerName: party?.customerName ?? null,
+        supplierName: party?.supplierName ?? null,
+      };
+    }),
     orderItems: orderItems.map((item) => ({ ...item, quantity: item.quantity.toNumber() })),
     totalSold: soldTotal._sum.quantity?.toNumber() ?? 0,
   };

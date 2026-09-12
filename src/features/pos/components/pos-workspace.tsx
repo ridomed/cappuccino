@@ -11,8 +11,14 @@ import {
   Minimize2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useDefaultLayout, type LayoutStorage } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +73,18 @@ function langFromLocale(locale: Locale): SaleResult["language"] {
   return locale === "en" ? "EN" : locale === "fr" ? "FR" : "AR";
 }
 
+// useDefaultLayout()'s own default storage param references the bare
+// `localStorage` global, which doesn't exist during SSR and crashes the
+// server render before this component ever gets to its `mounted` check —
+// passing an explicit, window-guarded storage sidesteps that entirely.
+const panelLayoutStorage: LayoutStorage = {
+  getItem: (key) =>
+    typeof window === "undefined" ? null : window.localStorage.getItem(key),
+  setItem: (key, value) => {
+    if (typeof window !== "undefined") window.localStorage.setItem(key, value);
+  },
+};
+
 function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
@@ -119,6 +137,19 @@ export function PosWorkspace({
 
   const [isPending, startTransition] = useTransition();
   const { heldSales, hold, remove } = useHeldSales();
+
+  // Cashier-adjustable panel widths (categories / products / cart), kept in
+  // localStorage across sessions and register reboots. "-v2" because the
+  // first shipped version passed bare numbers (interpreted as *pixels*) as
+  // defaultSize/minSize/maxSize instead of percentage strings, which could
+  // have saved a collapsed layout under the old key — bumping the id starts
+  // every browser from the corrected percentage-based defaults.
+  const { defaultLayout: panelLayout, onLayoutChanged: onPanelLayoutChanged } =
+    useDefaultLayout({
+      id: "pos-panels-v2",
+      panelIds: ["categories", "products", "cart"],
+      storage: panelLayoutStorage,
+    });
 
   // Restore the in-progress sale (survives the full reload a language
   // change triggers, and an accidental refresh). setState is deferred a
@@ -550,48 +581,61 @@ export function PosWorkspace({
           }}
         />
       ) : (
-        <div className="flex min-h-0 flex-1 gap-3 p-3">
-          <CategoryRail
-            initial={initialCategories}
-            activeId={activeCategory}
-            onSelect={(id, name) => {
-              setActiveCategory(id);
-              setActiveCategoryName(id === "ALL" ? "" : name);
-            }}
-            onBarcodeScan={handleBarcode}
-          />
-          <ProductGrid
-            initial={initialProducts}
-            categoryId={activeCategory}
-            query={query}
-            categoryName={categoryName}
-            customerId={customer.id}
-            cartQuantities={cartQuantities}
-            onAddProduct={(p) => setDialogProduct(p)}
-            onIncrement={(p) => changeQty(p.id, 1)}
-            onDecrement={(p) => changeQty(p.id, -1)}
-          />
-          <CartPanel
-            customer={customer}
-            customerBalance={customer.balance}
-            lines={lines}
-            method={method}
-            paidAmount={paidValue}
-            isPending={isPending}
-            onChangeCustomer={() => setStep("customer")}
-            onClearCustomer={resetSale}
-            onSetQuantity={setQuantity}
-            onRemove={removeLine}
-            onClearCart={() => setLines([])}
-            onHold={handleHold}
-            onSetMethod={setMethod}
-            onSetPaidAmount={(v) => {
-              setPaidTouched(true);
-              setPaidAmount(v);
-            }}
-            onPay={() => handlePay()}
-          />
-        </div>
+        <ResizablePanelGroup
+          id="pos-panels-v2"
+          className="min-h-0 flex-1 p-3"
+          defaultLayout={panelLayout}
+          onLayoutChanged={onPanelLayoutChanged}
+        >
+          <ResizablePanel id="categories" defaultSize="18%" minSize="10%" maxSize="30%">
+            <CategoryRail
+              initial={initialCategories}
+              activeId={activeCategory}
+              onSelect={(id, name) => {
+                setActiveCategory(id);
+                setActiveCategoryName(id === "ALL" ? "" : name);
+              }}
+              onBarcodeScan={handleBarcode}
+            />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel id="products" defaultSize="52%" minSize="30%">
+            <ProductGrid
+              initial={initialProducts}
+              categoryId={activeCategory}
+              query={query}
+              categoryName={categoryName}
+              customerId={customer.id}
+              cartQuantities={cartQuantities}
+              onAddProduct={(p) => setDialogProduct(p)}
+              onIncrement={(p) => changeQty(p.id, 1)}
+              onDecrement={(p) => changeQty(p.id, -1)}
+            />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel id="cart" defaultSize="30%" minSize="18%" maxSize="45%">
+            <CartPanel
+              customer={customer}
+              customerBalance={customer.balance}
+              lines={lines}
+              method={method}
+              paidAmount={paidValue}
+              isPending={isPending}
+              onChangeCustomer={() => setStep("customer")}
+              onClearCustomer={resetSale}
+              onSetQuantity={setQuantity}
+              onRemove={removeLine}
+              onClearCart={() => setLines([])}
+              onHold={handleHold}
+              onSetMethod={setMethod}
+              onSetPaidAmount={(v) => {
+                setPaidTouched(true);
+                setPaidAmount(v);
+              }}
+              onPay={() => handlePay()}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
       )}
 
       {dialogProduct && (

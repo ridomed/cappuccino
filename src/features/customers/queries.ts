@@ -192,7 +192,6 @@ export async function getCustomerStatement(
   from?: string,
   to?: string,
 ) {
-  console.log("SERVER LOG:", { customerId, from, to });
   const createdAt = {
     ...(from ? { gte: new Date(`${from}T00:00:00`) } : {}),
     ...(to ? { lte: new Date(`${to}T23:59:59.999`) } : {}),

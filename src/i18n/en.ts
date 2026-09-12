@@ -243,7 +243,8 @@ export const en = {
       noDashboardAccessBody:
         "Your account has no dashboard permissions. You can use the point of sale only.",
       noCaisseAccessTitle: "No access to La Caisse",
-      noCaisseAccessBody: "Your account doesn't have the point-of-sale permission.",
+      noCaisseAccessBody:
+        "Your account doesn't have the point-of-sale permission.",
       goToCaisse: "Go to La Caisse",
       goToDashboard: "Go to the Dashboard",
       dismiss: "OK",
@@ -988,6 +989,7 @@ export const en = {
     printCardTitle: "Print",
     languageUpdatedToast: "Print language updated",
     dateUpdatedToast: "Purchase order date updated",
+    supplierUpdatedToast: "Supplier updated",
     itemsCardTitle: "Items",
     receivedNotice:
       "This order has already been received and its quantities were added to inventory. Its items can no longer be edited — set its status back to pending first (this will remove what it added from inventory).",
@@ -1060,8 +1062,90 @@ export const en = {
     fileUploadFailedError: "Failed to upload one of the files",
     fileUploadGenericError: "An error occurred while uploading the files",
     attachmentNotFoundError: "Attachment not found",
-    attachmentDeleteDescriptionTemplate: 'The file "{name}" will be permanently deleted.',
+    attachmentDeleteDescriptionTemplate:
+      'The file "{name}" will be permanently deleted.',
     downloadAttachmentLabel: "Download file",
+  },
+  purchaseScan: {
+    actionButton: "Scan invoice",
+    pageTitle: "AI purchase invoice scanner",
+    pageDescription:
+      "Upload a supplier invoice  the system extracts the products, matches them to your catalog, and lets you review everything before the purchase order is created.",
+    dropzoneTitle: "Choose an invoice or drop it here",
+    dropzoneHint:
+      "PDF, JPG, PNG or WebP — up to 20 MB for PDF, 10 MB for images",
+    processing: "Processing…",
+    disclaimer:
+      "Nothing is saved and no stock changes until you review the result and press Confirm. You can re-scan without creating anything.",
+    retry: "Try again",
+    scanAnother: "Scan another",
+    stages: {
+      rendering: "Rendering pages to images",
+      renderingPage: "Page {page} of {pages}",
+      scanning: "Reading the invoice with AI",
+      matching: "Matching products",
+    },
+    errors: {
+      unsupportedFile: "Unsupported file type. Use PDF, JPG, PNG or WebP.",
+      fileTooLarge: "The file is too large.",
+      pdfRenderFailed:
+        "Could not process the PDF. Try another file or an image.",
+      deepseekConfig:
+        "The AI service is not configured (DeepSeek API key missing).",
+      deepseekFailed:
+        "Could not analyze the invoice with AI. Please try again.",
+      invalidAiJson:
+        "The invoice could not be read reliably. Try a clearer image.",
+      noItems: "No line items were detected on the invoice.",
+      internal: "An unexpected error occurred while scanning.",
+    },
+    matchStatus: {
+      EXACT_SKU: "SKU match",
+      EXACT_BARCODE: "Barcode match",
+      STRONG_NAME_MATCH: "Strong match",
+      REVIEW_REQUIRED: "Needs review",
+      NOT_FOUND: "Not found",
+    },
+    warnings: {
+      missingQuantity: "Quantity could not be read — enter it manually.",
+      missingPrice: "Purchase price could not be read — enter it manually.",
+      totalMismatch: "Invoice line total is {invoice}.",
+    },
+    supplierInvoiceNumberLabel: "Supplier invoice number",
+    supplierInvoiceDateLabel: "Supplier invoice date",
+    receiveNowLabel: "Receive goods into inventory now",
+    addSupplier: "Add a new supplier",
+    supplierCreatedToast: "Supplier added",
+    matchedProductLabel: "Matched system product",
+    existingProductToggle: "Existing product",
+    newProductToggle: "New product",
+    invoiceSkuLabel: "Invoice SKU",
+    suggestionsLabel: "suggested",
+    allProductsLabel: "No match",
+    notFoundHint:
+      "Product not found in the system — search for and pick an existing product.",
+    unnamedLine: "Unnamed line",
+    manualLineLabel: "New product",
+    manualBadge: "Added manually",
+    addProductButton: "Add product",
+    currentPurchasePrice: "Current purchase price",
+    noLinesLeft: "No lines left.",
+    aiTotalLabel: "Invoice total (AI)",
+    computedTotalLabel: "Computed total",
+    confirmButton: "Confirm and create purchase order",
+    pickSupplierHint: "Pick a supplier to continue.",
+    resolveLinesHint:
+      "Fill in the required fields (*) on every selected line.",
+    originalLabel: "Original invoice",
+    duplicateWarning:
+      "A purchase order ({number}) already exists with this supplier invoice number for this supplier.",
+    duplicateInvoiceError:
+      "This invoice has already been imported (same supplier and invoice number).",
+    createdToast: "Purchase order created",
+    alreadyCreatedToast: "Purchase order already created",
+    supplierNotFoundError: "Supplier not found",
+    unresolvedLinesError: "Some lines refer to products that don't exist",
+    createFailedError: "Could not create the purchase order",
   },
   categories: {
     addButton: "Add category",
@@ -1157,6 +1241,8 @@ export const en = {
     columnQuantity: "Quantity",
     columnReason: "Reason",
     columnDate: "Date",
+    columnCustomer: "Customer",
+    columnSupplier: "Supplier",
     recordMovementButton: "Record movement",
     recordMovementDescription:
       "Record a stock-in, stock-out, or adjustment operation for a product's quantity",
@@ -1573,7 +1659,6 @@ export const en = {
     clearCart: "Clear Cart",
     emptyCart: "Cart is empty",
     removeItem: "Remove",
-    subtotal: "Subtotal",
     total: "Total",
     paymentMethodLabel: "Payment method",
     methodCash: "Cash",
@@ -1619,10 +1704,12 @@ export const en = {
     confirmCancelSale: "Delete sale",
     saleCancelledToast: "Sale cancelled, stock restored",
     editSale: "Edit sale",
-    saleReopenedToast: "Invoice reversed — you can now edit the sale and complete it again",
+    saleReopenedToast:
+      "Invoice reversed — you can now edit the sale and complete it again",
     noCustomerError: "Please select a customer",
     emptyCartError: "Cart is empty",
-    productUnavailableError: "A product is no longer available, please review the cart",
+    productUnavailableError:
+      "A product is no longer available, please review the cart",
     saleFailedError: "Could not complete the sale, please try again",
     languageUpdatedToast: "Invoice language updated",
   },

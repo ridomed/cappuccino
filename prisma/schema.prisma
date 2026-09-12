@@ -354,11 +354,23 @@ model PurchaseOrder {
   returns       PurchaseReturn[]
   attachments   PurchaseAttachment[]
   receivedAt    DateTime?
+  // The supplier's own invoice number/date, as printed on their document —
+  // distinct from our generated `orderNumber`. Populated by the AI invoice
+  // scanner (src/features/purchases/scan-actions.ts) and editable in its
+  // review screen; null for hand-entered orders. The composite unique below
+  // is the hard duplicate-import guard (Postgres treats NULLs as distinct,
+  // so many null-invoice-number orders per supplier are still allowed).
+  supplierInvoiceNumber String?
+  supplierInvoiceDate   DateTime?
+  // One-shot key sent by the scanner's review screen so a double-click / retry
+  // of Confirm can't create the order twice.
+  scanIdempotencyKey    String?           @unique
   createdById   String?
   createdBy     Admin?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
+  @@unique([supplierId, supplierInvoiceNumber])
   @@index([supplierId])
   @@index([createdById])
 }
