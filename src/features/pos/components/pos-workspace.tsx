@@ -11,7 +11,7 @@ import {
   Minimize2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useDefaultLayout, type LayoutStorage } from "react-resizable-panels";
+import type { Layout } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -73,17 +73,24 @@ function langFromLocale(locale: Locale): SaleResult["language"] {
   return locale === "en" ? "EN" : locale === "fr" ? "FR" : "AR";
 }
 
-// useDefaultLayout()'s own default storage param references the bare
-// `localStorage` global, which doesn't exist during SSR and crashes the
-// server render before this component ever gets to its `mounted` check —
-// passing an explicit, window-guarded storage sidesteps that entirely.
-const panelLayoutStorage: LayoutStorage = {
-  getItem: (key) =>
-    typeof window === "undefined" ? null : window.localStorage.getItem(key),
-  setItem: (key, value) => {
-    if (typeof window !== "undefined") window.localStorage.setItem(key, value);
-  },
-};
+const PANEL_LAYOUT_KEY =
+  "react-resizable-panels:pos-panels-v2:categories:products:cart";
+
+function readPanelLayout(): Layout | undefined {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(PANEL_LAYOUT_KEY) ?? "null");
+    if (!saved || typeof saved !== "object") return;
+    const sizes = [saved.categories, saved.products, saved.cart];
+    if (
+      sizes.every((size) => typeof size === "number" && Number.isFinite(size) && size > 0) &&
+      Math.abs(sizes.reduce((sum, size) => sum + size, 0) - 100) < 0.1
+    ) {
+      return { categories: saved.categories, products: saved.products, cart: saved.cart };
+    }
+  } catch {
+    // Missing, corrupt, or blocked storage leaves the default widths usable.
+  }
+}
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -144,19 +151,26 @@ export function PosWorkspace({
   // defaultSize/minSize/maxSize instead of percentage strings, which could
   // have saved a collapsed layout under the old key — bumping the id starts
   // every browser from the corrected percentage-based defaults.
-  const { defaultLayout: panelLayout, onLayoutChanged: onPanelLayoutChanged } =
-    useDefaultLayout({
-      id: "pos-panels-v2",
-      panelIds: ["categories", "products", "cart"],
-      storage: panelLayoutStorage,
-    });
+  const [panelLayout, setPanelLayout] = useState<Layout>();
+
+  function onPanelLayoutChanged(layout: Layout, meta: { isUserInteraction: boolean }) {
+    if (!meta.isUserInteraction) return;
+    setPanelLayout(layout);
+    try {
+      window.localStorage.setItem(PANEL_LAYOUT_KEY, JSON.stringify(layout));
+    } catch {
+      // Resizing remains available when browser storage is blocked or full.
+    }
+  }
 
   // Restore the in-progress sale (survives the full reload a language
   // change triggers, and an accidental refresh). setState is deferred a
   // tick so it doesn't run synchronously inside the effect.
   useEffect(() => {
     const saved = readPosSession();
+    const savedPanelLayout = readPanelLayout();
     const id = setTimeout(() => {
+      setPanelLayout(savedPanelLayout);
       if (saved) {
         if (saved.step) setStep(saved.step);
         if ("customer" in saved) setCustomer(saved.customer ?? null);
@@ -587,7 +601,7 @@ export function PosWorkspace({
           defaultLayout={panelLayout}
           onLayoutChanged={onPanelLayoutChanged}
         >
-          <ResizablePanel id="categories" defaultSize="18%" minSize="10%" maxSize="30%">
+          <ResizablePanel id="categories" defaultSize={`${panelLayout?.categories ?? 18}%`} minSize="10%" maxSize="30%">
             <CategoryRail
               initial={initialCategories}
               activeId={activeCategory}
@@ -599,7 +613,7 @@ export function PosWorkspace({
             />
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel id="products" defaultSize="52%" minSize="30%">
+          <ResizablePanel id="products" defaultSize={`${panelLayout?.products ?? 52}%`} minSize="30%">
             <ProductGrid
               initial={initialProducts}
               categoryId={activeCategory}
@@ -613,7 +627,7 @@ export function PosWorkspace({
             />
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel id="cart" defaultSize="30%" minSize="18%" maxSize="45%">
+          <ResizablePanel id="cart" defaultSize={`${panelLayout?.cart ?? 30}%`} minSize="18%" maxSize="45%">
             <CartPanel
               customer={customer}
               customerBalance={customer.balance}
