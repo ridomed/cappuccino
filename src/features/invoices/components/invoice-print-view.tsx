@@ -11,7 +11,10 @@ import { formatDateTime } from "@/lib/date";
 
 export type Lang = "ar" | "en" | "fr";
 
-export function resolveInvoiceLang(param: string | undefined, fallback: string): Lang {
+export function resolveInvoiceLang(
+  param: string | undefined,
+  fallback: string,
+): Lang {
   const requested = param ?? fallback.toLowerCase();
   return requested === "en" || requested === "fr" ? requested : "ar";
 }
@@ -200,7 +203,7 @@ export async function InvoicePrintView({
       >
         <table className="w-full table-fixed border-collapse text-sm print:text-xs">
           <colgroup>
-            <col className="w-[15%]" />
+            <col className="w-[20%]" />
             <col className="w-[72%]" />
             <col className="w-[20%]" />
             <col className="w-[25%]" />
