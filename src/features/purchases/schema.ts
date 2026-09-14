@@ -29,6 +29,7 @@ export const purchaseOrderSchema = z.object({
         productId: z.string(),
         quantity: z.coerce.number().min(0.001),
         unitCost: z.coerce.number().min(0),
+        price1: z.coerce.number().min(0),
         updateProductPurchasePrice: z.boolean().default(false),
       }),
     )
@@ -48,6 +49,7 @@ export const purchaseOrderItemsSchema = z.object({
         productId: z.string(),
         quantity: z.coerce.number().min(0.001),
         unitCost: z.coerce.number().min(0),
+        price1: z.coerce.number().min(0),
         updateProductPurchasePrice: z.boolean().default(false),
       }),
     )

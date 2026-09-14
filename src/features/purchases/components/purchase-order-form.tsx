@@ -214,6 +214,7 @@ export function PurchaseOrderForm({
           productId: defaultProduct?.id ?? "",
           quantity: 1,
           unitCost: defaultProduct?.purchasePrice ?? 0,
+          price1: defaultProduct?.price1 ?? 0,
           updateProductPurchasePrice: true,
         },
       ],
@@ -261,6 +262,7 @@ export function PurchaseOrderForm({
         productId: product.id,
         quantity: 1,
         unitCost: product.purchasePrice,
+        price1: product.price1,
         updateProductPurchasePrice: true,
       }),
     );
@@ -375,7 +377,7 @@ export function PurchaseOrderForm({
                 <SortableItem
                   key={field.id}
                   id={field.id}
-                  className="grid grid-cols-1 items-start gap-2 rounded-lg border p-3 sm:grid-cols-[auto_1fr_auto_auto_auto]"
+                  className="grid grid-cols-1 items-start gap-2 rounded-lg border p-3 sm:grid-cols-[auto_1fr_auto_auto_auto_auto]"
                 >
                   {(dragHandle) => (
                     <>
@@ -398,6 +400,10 @@ export function PurchaseOrderForm({
                                 setValue(
                                   `items.${index}.unitCost`,
                                   product?.purchasePrice ?? 0,
+                                );
+                                setValue(
+                                  `items.${index}.price1`,
+                                  product?.price1 ?? 0,
                                 );
                               }}
                               t={t}
@@ -449,6 +455,19 @@ export function PurchaseOrderForm({
                         />
                       </div>
                       <div className="space-y-1">
+                        <Label className="text-xs">
+                          {t.products.price1Label}
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.0001"
+                          inputMode="decimal"
+                          className="w-28"
+                          {...register(`items.${index}.price1`)}
+                        />
+                      </div>
+                      <div className="space-y-1">
                         <Label className="hidden text-xs sm:block">&nbsp;</Label>
                         <Button
                           type="button"
@@ -474,7 +493,15 @@ export function PurchaseOrderForm({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => append({ productId: "", quantity: 1, unitCost: 0, updateProductPurchasePrice: true })}
+          onClick={() =>
+            append({
+              productId: "",
+              quantity: 1,
+              unitCost: 0,
+              price1: 0,
+              updateProductPurchasePrice: true,
+            })
+          }
         >
           <Plus className="size-4" />
           {t.purchases.addItemButton}

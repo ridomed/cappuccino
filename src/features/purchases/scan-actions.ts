@@ -163,6 +163,7 @@ export async function confirmScannedPurchase(
           productId: string;
           quantity: number;
           unitCost: number;
+          price1: number | undefined;
           updateProductPurchasePrice: boolean;
           isNewProduct: boolean;
         }[] = [];
@@ -172,6 +173,7 @@ export async function confirmScannedPurchase(
               productId: line.productId,
               quantity: line.quantity,
               unitCost: line.unitCost,
+              price1: line.price1,
               updateProductPurchasePrice: line.updateProductPurchasePrice,
               isNewProduct: false,
             });
@@ -213,6 +215,7 @@ export async function confirmScannedPurchase(
             productId: newProduct.id,
             quantity: line.quantity,
             unitCost: line.unitCost,
+            price1: undefined,
             updateProductPurchasePrice: false,
             isNewProduct: true,
           });
@@ -251,17 +254,31 @@ export async function confirmScannedPurchase(
           select: { id: true },
         });
 
-        // Purchase-price sync for EXISTING products — identical rule to
-        // createPurchaseOrder: only a real change is worth a
-        // ProductPriceHistory row. A brand-new product's purchasePrice and
-        // price history were already set when it was created above.
+        // Price sync for EXISTING products — a brand-new product's price1,
+        // purchasePrice and price history were already set when it was
+        // created above, so this only runs for matched lines. price1
+        // always follows the line (it defaults to the product's current
+        // price1, so an untouched line is a no-op write); purchasePrice
+        // only follows unitCost when explicitly opted in — only a real
+        // change there is worth a ProductPriceHistory row.
         for (const line of resolvedLines) {
-          if (line.isNewProduct || !line.updateProductPurchasePrice) continue;
+          if (line.isNewProduct) continue;
+          if (line.price1 === undefined && !line.updateProductPurchasePrice) {
+            continue;
+          }
           await tx.product.update({
             where: { id: line.productId },
-            data: { purchasePrice: line.unitCost },
+            data: {
+              ...(line.price1 !== undefined ? { price1: line.price1 } : {}),
+              ...(line.updateProductPurchasePrice
+                ? { purchasePrice: line.unitCost }
+                : {}),
+            },
           });
-          if (currentPriceById.get(line.productId) !== line.unitCost) {
+          if (
+            line.updateProductPurchasePrice &&
+            currentPriceById.get(line.productId) !== line.unitCost
+          ) {
             await tx.productPriceHistory.create({
               data: {
                 productId: line.productId,

@@ -168,9 +168,18 @@ export function PurchaseOrderItemsForm({
             productId,
             quantity,
             unitCost,
+            price1: products.find((p) => p.id === productId)?.price1 ?? 0,
             updateProductPurchasePrice: true,
           }))
-        : [{ productId: "", quantity: 1, unitCost: 0, updateProductPurchasePrice: true }],
+        : [
+            {
+              productId: "",
+              quantity: 1,
+              unitCost: 0,
+              price1: 0,
+              updateProductPurchasePrice: true,
+            },
+          ],
     },
   });
 
@@ -198,6 +207,7 @@ export function PurchaseOrderItemsForm({
         productId: product.id,
         quantity: 1,
         unitCost: product.purchasePrice,
+        price1: product.price1,
         updateProductPurchasePrice: true,
       }),
     );
@@ -304,7 +314,7 @@ export function PurchaseOrderItemsForm({
                 <SortableItem
                   key={field.id}
                   id={field.id}
-                  className="grid grid-cols-1 items-start gap-2 rounded-lg border p-3 sm:grid-cols-[auto_1fr_auto_auto_auto]"
+                  className="grid grid-cols-1 items-start gap-2 rounded-lg border p-3 sm:grid-cols-[auto_1fr_auto_auto_auto_auto]"
                 >
                   {(dragHandle) => (
                     <>
@@ -327,6 +337,10 @@ export function PurchaseOrderItemsForm({
                                 setValue(
                                   `items.${index}.unitCost`,
                                   product?.purchasePrice ?? 0,
+                                );
+                                setValue(
+                                  `items.${index}.price1`,
+                                  product?.price1 ?? 0,
                                 );
                               }}
                               t={t}
@@ -378,6 +392,19 @@ export function PurchaseOrderItemsForm({
                         />
                       </div>
                       <div className="space-y-1">
+                        <Label className="text-xs">
+                          {t.products.price1Label}
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.0001"
+                          inputMode="decimal"
+                          className="w-28"
+                          {...register(`items.${index}.price1`)}
+                        />
+                      </div>
+                      <div className="space-y-1">
                         <Label className="hidden text-xs sm:block">&nbsp;</Label>
                         <Button
                           type="button"
@@ -405,7 +432,15 @@ export function PurchaseOrderItemsForm({
           variant="outline"
           size="sm"
           className="cursor-pointer"
-          onClick={() => append({ productId: "", quantity: 1, unitCost: 0, updateProductPurchasePrice: true })}
+          onClick={() =>
+            append({
+              productId: "",
+              quantity: 1,
+              unitCost: 0,
+              price1: 0,
+              updateProductPurchasePrice: true,
+            })
+          }
         >
           <Plus className="size-4" />
           {t.purchases.addItemButton}

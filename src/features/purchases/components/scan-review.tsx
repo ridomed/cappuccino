@@ -58,6 +58,7 @@ export type ScanProductOption = {
   sku: string;
   barcode: string | null;
   purchasePrice: number;
+  price1: number;
 };
 
 type SupplierOption = { id: string; name: string };
@@ -95,6 +96,9 @@ type LineState = {
   newProduct: NewProductDraft;
   quantity: string;
   unitCost: string;
+  /** price1 for the *matched* product (mode "existing" only) — a new
+   * product's price1 lives on newProduct.price1 instead. */
+  price1: string;
   updatePrice: boolean;
   /** true for a line the admin added by hand — not detected on the invoice. */
   manual: boolean;
@@ -117,6 +121,7 @@ const NONE_PRODUCT: ScanProductOption = {
   sku: "",
   barcode: null,
   purchasePrice: 0,
+  price1: 0,
 };
 
 /** Marks a field's <Label> as required — paired with resolveLinesHint's
@@ -206,6 +211,15 @@ export function ScanReview({
         line.match.candidates[0]?.productId ??
         "";
       const product = suggested ? productById.get(suggested) : undefined;
+      // Price 1 defaults to the unit cost, same as a fresh line — the admin
+      // can still override it, but there's no reason to guess the product's
+      // current price1 here.
+      const unitCost =
+        line.invoice.unitPrice != null
+          ? String(line.invoice.unitPrice)
+          : product
+            ? String(product.purchasePrice)
+            : "";
       return {
         key: line.key,
         include: line.match.status !== "NOT_FOUND",
@@ -221,12 +235,8 @@ export function ScanReview({
           barcode: line.invoice.barcode ?? "",
         },
         quantity: toInput(line.invoice.quantity),
-        unitCost:
-          line.invoice.unitPrice != null
-            ? String(line.invoice.unitPrice)
-            : product
-              ? String(product.purchasePrice)
-              : "",
+        unitCost,
+        price1: unitCost,
         updatePrice: true,
         manual: false,
       };
@@ -255,6 +265,7 @@ export function ScanReview({
         newProduct: EMPTY_NEW_PRODUCT,
         quantity: "",
         unitCost: "",
+        price1: "",
         updatePrice: true,
         manual: true,
       },
@@ -331,6 +342,7 @@ export function ScanReview({
                 productId: line.productId,
                 quantity: Number(line.quantity),
                 unitCost: Number(line.unitCost),
+                price1: line.price1 === "" ? 0 : Number(line.price1),
                 updateProductPurchasePrice: line.updatePrice,
               }
             : {
@@ -558,7 +570,12 @@ export function ScanReview({
                       <div className="inline-flex overflow-hidden rounded-md border text-xs">
                         <button
                           type="button"
-                          onClick={() => patchLine(line.key, { mode: "existing" })}
+                          onClick={() =>
+                            patchLine(line.key, {
+                              mode: "existing",
+                              price1: line.price1 === "" ? line.unitCost : line.price1,
+                            })
+                          }
                           className={
                             "px-2 py-1 transition-colors " +
                             (line.mode === "existing"
@@ -570,7 +587,15 @@ export function ScanReview({
                         </button>
                         <button
                           type="button"
-                          onClick={() => patchLine(line.key, { mode: "new" })}
+                          onClick={() =>
+                            patchLine(line.key, {
+                              mode: "new",
+                              newProduct:
+                                line.newProduct.price1 === ""
+                                  ? { ...line.newProduct, price1: line.unitCost }
+                                  : line.newProduct,
+                            })
+                          }
                           className={
                             "border-s px-2 py-1 transition-colors " +
                             (line.mode === "new"
@@ -592,12 +617,19 @@ export function ScanReview({
                         value={line.productId}
                         onChange={(id) => {
                           const picked = id ? productById.get(id) : undefined;
+                          const nextUnitCost =
+                            line.unitCost === "" && picked
+                              ? String(picked.purchasePrice)
+                              : line.unitCost;
+                          // Price 1 mirrors the unit cost until the admin
+                          // edits it by hand (tracked by "still equal to the
+                          // unit cost, or never set").
+                          const mirroring =
+                            line.price1 === "" || line.price1 === line.unitCost;
                           patchLine(line.key, {
                             productId: id,
-                            unitCost:
-                              line.unitCost === "" && picked
-                                ? String(picked.purchasePrice)
-                                : line.unitCost,
+                            unitCost: nextUnitCost,
+                            price1: mirroring ? nextUnitCost : line.price1,
                           });
                         }}
                         searchPlaceholder={t.inventory.productSearchPlaceholder}
@@ -737,9 +769,27 @@ export function ScanReview({
                       inputMode="decimal"
                       className="w-28"
                       value={line.unitCost}
-                      onChange={(e) =>
-                        patchLine(line.key, { unitCost: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (line.mode === "existing") {
+                          const mirroring =
+                            line.price1 === "" || line.price1 === line.unitCost;
+                          patchLine(line.key, {
+                            unitCost: value,
+                            price1: mirroring ? value : line.price1,
+                          });
+                        } else {
+                          const mirroring =
+                            line.newProduct.price1 === "" ||
+                            line.newProduct.price1 === line.unitCost;
+                          patchLine(line.key, {
+                            unitCost: value,
+                            newProduct: mirroring
+                              ? { ...line.newProduct, price1: value }
+                              : line.newProduct,
+                          });
+                        }
+                      }}
                     />
                     {line.mode === "existing" && product && (
                       <p className="text-[11px] text-muted-foreground">
@@ -748,6 +798,22 @@ export function ScanReview({
                       </p>
                     )}
                   </div>
+                  {line.mode === "existing" && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t.products.price1Label}</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.0001"
+                        inputMode="decimal"
+                        className="w-28"
+                        value={line.price1}
+                        onChange={(e) =>
+                          patchLine(line.key, { price1: e.target.value })
+                        }
+                      />
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label className="text-xs">{t.purchases.totalLabel}</Label>
                     <p className="pt-2 text-sm font-medium">

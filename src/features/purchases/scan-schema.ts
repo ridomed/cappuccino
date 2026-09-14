@@ -110,6 +110,10 @@ export const confirmScannedLineSchema = z
     newProduct: newProductForScannedLineSchema.optional(),
     quantity: z.coerce.number().min(0.001),
     unitCost: z.coerce.number().min(0),
+    // Only meaningful for an existing-product line (a new product's price1
+    // lives on `newProduct.price1` instead) — always sent by the review
+    // screen, defaulting to the matched product's current price1.
+    price1: z.coerce.number().min(0).optional(),
     updateProductPurchasePrice: z.boolean().default(false),
   })
   .refine((line) => Boolean(line.productId) !== Boolean(line.newProduct), {

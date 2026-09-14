@@ -98,22 +98,32 @@ export async function createPurchaseOrder(
     });
 
     for (const item of parsed.data.items) {
-      if (item.updateProductPurchasePrice) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { purchasePrice: item.unitCost },
+      // price1 (the product's selling price) is always kept in sync with
+      // this line — it defaults to the product's current price1 in the
+      // form, so a line the admin didn't touch is a harmless no-op write.
+      // purchasePrice only follows unitCost when explicitly opted in.
+      await tx.product.update({
+        where: { id: item.productId },
+        data: {
+          price1: item.price1,
+          ...(item.updateProductPurchasePrice
+            ? { purchasePrice: item.unitCost }
+            : {}),
+        },
+      });
+      if (
+        item.updateProductPurchasePrice &&
+        currentPriceById.get(item.productId) !== item.unitCost
+      ) {
+        await tx.productPriceHistory.create({
+          data: {
+            productId: item.productId,
+            purchasePrice: item.unitCost,
+            reason: `تحديث السعر من أمر شراء رقم ${orderNumber}`,
+            reference: orderNumber,
+            createdById: access.adminId,
+          },
         });
-        if (currentPriceById.get(item.productId) !== item.unitCost) {
-          await tx.productPriceHistory.create({
-            data: {
-              productId: item.productId,
-              purchasePrice: item.unitCost,
-              reason: `تحديث السعر من أمر شراء رقم ${orderNumber}`,
-              reference: orderNumber,
-              createdById: access.adminId,
-            },
-          });
-        }
       }
     }
 
@@ -124,9 +134,7 @@ export async function createPurchaseOrder(
   revalidatePath("/dashboard/purchases");
   revalidatePath("/dashboard/products");
   for (const item of parsed.data.items) {
-    if (item.updateProductPurchasePrice) {
-      revalidatePath(`/dashboard/products/${item.productId}`);
-    }
+    revalidatePath(`/dashboard/products/${item.productId}`);
   }
   redirect(`/dashboard/purchases/${order.id}`);
 }
@@ -189,22 +197,32 @@ export async function updatePurchaseOrderItems(
       });
       await tx.purchaseOrder.update({ where: { id }, data: { total } });
       for (const item of parsed.data.items) {
-        if (item.updateProductPurchasePrice) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { purchasePrice: item.unitCost },
+        // Same rule as createPurchaseOrder: price1 always follows this
+        // line (it defaults to the product's current price1, so a
+        // no-touch line is a harmless no-op write); purchasePrice only
+        // follows unitCost when explicitly opted in.
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            price1: item.price1,
+            ...(item.updateProductPurchasePrice
+              ? { purchasePrice: item.unitCost }
+              : {}),
+          },
+        });
+        if (
+          item.updateProductPurchasePrice &&
+          currentPriceById.get(item.productId) !== item.unitCost
+        ) {
+          await tx.productPriceHistory.create({
+            data: {
+              productId: item.productId,
+              purchasePrice: item.unitCost,
+              reason: `تحديث السعر من تعديل أمر شراء رقم ${order.orderNumber}`,
+              reference: order.orderNumber,
+              createdById: access.adminId,
+            },
           });
-          if (currentPriceById.get(item.productId) !== item.unitCost) {
-            await tx.productPriceHistory.create({
-              data: {
-                productId: item.productId,
-                purchasePrice: item.unitCost,
-                reason: `تحديث السعر من تعديل أمر شراء رقم ${order.orderNumber}`,
-                reference: order.orderNumber,
-                createdById: access.adminId,
-              },
-            });
-          }
         }
       }
     });
@@ -216,9 +234,7 @@ export async function updatePurchaseOrderItems(
   revalidatePath(`/dashboard/purchases/${id}`);
   revalidatePath("/dashboard/products");
   for (const item of parsed.data.items) {
-    if (item.updateProductPurchasePrice) {
-      revalidatePath(`/dashboard/products/${item.productId}`);
-    }
+    revalidatePath(`/dashboard/products/${item.productId}`);
   }
   return { success: true };
 }

@@ -153,23 +153,6 @@ export function FormFieldsSkeleton({ fields = 5 }: { fields?: number }) {
   );
 }
 
-/** Matches the public product grid (2/3/4-column card layout). */
-export function ProductGridSkeleton({ count = 8 }: { count?: number }) {
-  return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-      {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="space-y-2 overflow-hidden rounded-2xl border">
-          <Skeleton className="aspect-square w-full rounded-none" />
-          <div className="space-y-2 p-3">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /** A generic bordered section card (title bar + body lines), for detail
  * pages built from several stacked Cards. */
 export function CardSkeleton({ lines = 3 }: { lines?: number }) {

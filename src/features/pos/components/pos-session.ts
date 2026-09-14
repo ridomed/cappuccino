@@ -1,21 +1,18 @@
 "use client";
 
 import type { PosCustomer } from "@/features/pos/queries";
-import type { CartLine, PosPaymentMethod, SaleResult } from "./types";
+import type { CartLine, SaleResult } from "./types";
 
 const KEY = "pos:session";
 
 /** In-progress sale, mirrored to sessionStorage so a full-page reload
  * (changing the UI language triggers one) never drops the selected
- * customer, the cart, the payment choice, or an open success dialog. */
+ * customer, the cart, or an open success dialog. */
 export type PosSession = {
   step: "customer" | "sell";
   customer: PosCustomer | null;
   lines: CartLine[];
   saleToken: string;
-  method: PosPaymentMethod;
-  paidAmount: string;
-  paidTouched: boolean;
   resumedHeldId: string | null;
   activeCategory: string;
   activeCategoryName: string;

@@ -26,6 +26,8 @@ This document is the single source of truth for this system: what it does, who c
 
 ### What it is
 
+The application now contains only the staff dashboard (`/dashboard/**`) and cashier workspace (`/caisse/**`), with `/login` and `/choose` supporting authentication and workspace selection. `/` redirects to `/choose`. The public storefront, catalog pages, shopping cart, and public checkout action have been removed; their former URLs return 404. Staff order management remains available in the dashboard.
+
 An Arabic-first (RTL, with English/French support), full-stack inventory + sales management system built on Next.js — an internal admin dashboard (`/dashboard/**`) for staff to manage products, stock, customers, sales, purchasing, suppliers, expenses, and reporting.
 
 ### Main purpose

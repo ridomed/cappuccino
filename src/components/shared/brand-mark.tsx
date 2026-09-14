@@ -14,8 +14,8 @@ const SIZES = {
 /**
  * The app's brand mark — renders the custom company logo when one is set
  * (Settings → appearance), then the logo from company.ts, and otherwise
- * the default icon badge. Shared by the sidebar, public nav, and public
- * footer so there's one place to change how the logo renders.
+ * the default icon badge. Shared by the sidebar, login, and cashier screens
+ * so there's one place to change how the logo renders.
  *
  * `logoUrl` is the admin-uploaded logo (from `getSystemSettings()`); pass
  * it wherever the settings are already loaded. A `null`/absent value just

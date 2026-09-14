@@ -38,8 +38,6 @@ export async function createCategory(input: unknown): Promise<ActionResult> {
   }
 
   revalidatePath("/dashboard/categories");
-  revalidatePath("/categories");
-  revalidatePath("/");
   return { success: true };
 }
 
@@ -92,8 +90,6 @@ export async function updateCategory(
   }
 
   revalidatePath("/dashboard/categories");
-  revalidatePath("/categories");
-  revalidatePath("/");
   return { success: true };
 }
 

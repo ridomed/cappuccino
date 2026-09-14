@@ -28,22 +28,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { BrandMark } from "@/components/shared/brand-mark";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
 import { logout } from "@/features/auth/actions";
 import { useLocale } from "@/i18n/locale-provider";
-import { formatMessage } from "@/i18n/format";
-import { formatCurrency } from "@/lib/currency";
 import type { Locale } from "@/i18n/config";
 import { createPosSale, findPosProductByBarcodeAction } from "@/features/pos/actions";
 import type { PosCustomer, PosProduct } from "@/features/pos/queries";
@@ -60,7 +48,7 @@ import {
   writePosSession,
   clearPosSession,
 } from "./pos-session";
-import type { CartLine, HeldSale, PosPaymentMethod, SaleResult } from "./types";
+import type { CartLine, HeldSale, SaleResult } from "./types";
 
 type ProductFeed = { items: PosProduct[]; total: number; nextOffset: number | null };
 type CategoryFeed = {
@@ -80,20 +68,25 @@ function readPanelLayout(): Layout | undefined {
   try {
     const saved = JSON.parse(window.localStorage.getItem(PANEL_LAYOUT_KEY) ?? "null");
     if (!saved || typeof saved !== "object") return;
-    const sizes = [saved.categories, saved.products, saved.cart];
-    if (
-      sizes.every((size) => typeof size === "number" && Number.isFinite(size) && size > 0) &&
-      Math.abs(sizes.reduce((sum, size) => sum + size, 0) - 100) < 0.1
-    ) {
-      return { categories: saved.categories, products: saved.products, cart: saved.cart };
+    const { categories, products, cart } = saved;
+    const sizes = [categories, products, cart];
+    if (!sizes.every((size) => typeof size === "number" && Number.isFinite(size) && size > 0)) {
+      return;
     }
+    // Normalize rather than reject when the saved percentages don't sum to
+    // exactly 100 — repeated resizes drift slightly (the library's own
+    // flexGrow math isn't perfectly precise), and discarding an otherwise
+    // valid saved layout over that silently reset every reload back to the
+    // hardcoded defaults instead of the cashier's last-picked widths.
+    const sum = categories + products + cart;
+    return {
+      categories: (categories / sum) * 100,
+      products: (products / sum) * 100,
+      cart: (cart / sum) * 100,
+    };
   } catch {
     // Missing, corrupt, or blocked storage leaves the default widths usable.
   }
-}
-
-function round2(n: number) {
-  return Math.round(n * 100) / 100;
 }
 
 export function PosWorkspace({
@@ -122,16 +115,7 @@ export function PosWorkspace({
   const [customer, setCustomer] = useState<PosCustomer | null>(null);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [saleToken, setSaleToken] = useState(() => crypto.randomUUID());
-  const [method, setMethod] = useState<PosPaymentMethod>("CASH");
-  const [paidAmount, setPaidAmount] = useState("");
-  const [paidTouched, setPaidTouched] = useState(false);
   const [sale, setSale] = useState<SaleResult | null>(null);
-  const [negativeBalance, setNegativeBalance] = useState<{
-    available: number;
-  } | null>(null);
-  const [excessPrompt, setExcessPrompt] = useState<{ excess: number } | null>(
-    null,
-  );
   const [resumedHeldId, setResumedHeldId] = useState<string | null>(null);
   const [dialogProduct, setDialogProduct] = useState<PosProduct | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -176,9 +160,6 @@ export function PosWorkspace({
         if ("customer" in saved) setCustomer(saved.customer ?? null);
         if (saved.lines) setLines(saved.lines);
         if (saved.saleToken) setSaleToken(saved.saleToken);
-        if (saved.method) setMethod(saved.method);
-        if ("paidAmount" in saved) setPaidAmount(saved.paidAmount ?? "");
-        if ("paidTouched" in saved) setPaidTouched(Boolean(saved.paidTouched));
         if ("resumedHeldId" in saved)
           setResumedHeldId(saved.resumedHeldId ?? null);
         if (saved.activeCategory) setActiveCategory(saved.activeCategory);
@@ -205,9 +186,6 @@ export function PosWorkspace({
       customer,
       lines,
       saleToken,
-      method,
-      paidAmount,
-      paidTouched,
       resumedHeldId,
       activeCategory,
       activeCategoryName,
@@ -219,9 +197,6 @@ export function PosWorkspace({
     customer,
     lines,
     saleToken,
-    method,
-    paidAmount,
-    paidTouched,
     resumedHeldId,
     activeCategory,
     activeCategoryName,
@@ -297,11 +272,6 @@ export function PosWorkspace({
     () => lines.reduce((sum, l) => sum + l.quantity * l.product.price1, 0),
     [lines],
   );
-  const paidValue = paidTouched
-    ? paidAmount
-    : total > 0
-      ? String(round2(total))
-      : "";
 
   const categoryName =
     activeCategory === "ALL"
@@ -361,9 +331,6 @@ export function PosWorkspace({
     clearPosSession();
     setLines([]);
     setCustomer(null);
-    setMethod("CASH");
-    setPaidAmount("");
-    setPaidTouched(false);
     setSale(null);
     setResumedHeldId(null);
     setDialogProduct(null);
@@ -406,26 +373,14 @@ export function PosWorkspace({
     }
   }
 
-  function handlePay(opts?: {
-    allowNegativeBalance?: boolean;
-    excessToBalance?: boolean;
-  }) {
+  // Checkout is cash-only, paid in full — no payment-method picker, no
+  // partial payments, so there's nothing left to prompt about (an
+  // overpayment or an insufficient balance can't happen when the amount
+  // charged is always exactly the total).
+  function handlePay() {
     if (!customer || lines.length === 0) return;
-    const amount = Number(paidValue) || 0;
+    const amount = Math.round(total * 100) / 100;
 
-    // Any overpayment (except من الرصيد, which can't overpay itself) gets a
-    // dialog first: add the extra to the customer's balance, or not
-    // (default no — cash change / discarded).
-    if (
-      opts?.excessToBalance === undefined &&
-      method !== "BALANCE" &&
-      amount > total + 0.005
-    ) {
-      setExcessPrompt({ excess: round2(amount - total) });
-      return;
-    }
-
-    const excessToBalance = opts?.excessToBalance ?? false;
     startTransition(async () => {
       const result = await createPosSale({
         saleToken,
@@ -435,19 +390,10 @@ export function PosWorkspace({
           productId: l.product.id,
           quantity: l.quantity,
         })),
-        payment: {
-          method,
-          amount,
-          allowNegativeBalance: opts?.allowNegativeBalance,
-          excessToBalance,
-        },
+        payment: { method: "CASH", amount },
       });
 
       if ("error" in result) {
-        if (result.code === "INSUFFICIENT_BALANCE") {
-          setNegativeBalance({ available: result.available ?? 0 });
-          return;
-        }
         toast.error(result.error);
         return;
       }
@@ -461,7 +407,7 @@ export function PosWorkspace({
         paid: result.paid,
         change: result.change,
         credited: result.credited,
-        method,
+        method: "CASH",
         language: langFromLocale(locale),
       });
     });
@@ -484,9 +430,6 @@ export function PosWorkspace({
     setLines(held.lines);
     setResumedHeldId(held.id);
     setSaleToken(crypto.randomUUID());
-    setMethod("CASH");
-    setPaidAmount("");
-    setPaidTouched(false);
     setStep("sell");
   }
 
@@ -630,10 +573,7 @@ export function PosWorkspace({
           <ResizablePanel id="cart" defaultSize={`${panelLayout?.cart ?? 30}%`} minSize="18%" maxSize="45%">
             <CartPanel
               customer={customer}
-              customerBalance={customer.balance}
               lines={lines}
-              method={method}
-              paidAmount={paidValue}
               isPending={isPending}
               onChangeCustomer={() => setStep("customer")}
               onClearCustomer={resetSale}
@@ -641,12 +581,7 @@ export function PosWorkspace({
               onRemove={removeLine}
               onClearCart={() => setLines([])}
               onHold={handleHold}
-              onSetMethod={setMethod}
-              onSetPaidAmount={(v) => {
-                setPaidTouched(true);
-                setPaidAmount(v);
-              }}
-              onPay={() => handlePay()}
+              onPay={handlePay}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -672,71 +607,6 @@ export function PosWorkspace({
         onNewSale={resetSale}
         onEdit={reopenSaleForEdit}
       />
-
-      <AlertDialog
-        open={negativeBalance !== null}
-        onOpenChange={(open) => !open && setNegativeBalance(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t.invoices.insufficientBalanceTitle}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {negativeBalance &&
-                formatMessage(t.pos.negativeBalanceConfirm, {
-                  available: formatCurrency(negativeBalance.available, locale),
-                })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setNegativeBalance(null);
-                handlePay({ allowNegativeBalance: true, excessToBalance: false });
-              }}
-            >
-              {t.invoices.insufficientBalanceGoNegative}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={excessPrompt !== null}
-        onOpenChange={(open) => !open && setExcessPrompt(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t.invoices.excessPaymentTitle}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {excessPrompt &&
-                formatMessage(t.pos.excessToBalancePrompt, {
-                  excess: formatCurrency(excessPrompt.excess, locale),
-                })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setExcessPrompt(null);
-                handlePay({ excessToBalance: true });
-              }}
-            >
-              {t.invoices.excessPaymentAddToBalance}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setExcessPrompt(null);
-                handlePay({ excessToBalance: false });
-              }}
-            >
-              {t.invoices.excessPaymentDiscard}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

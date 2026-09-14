@@ -38,6 +38,7 @@ export default async function ScanPurchaseInvoicePage() {
     sku: product.sku,
     barcode: product.barcode,
     purchasePrice: Number(product.purchasePrice),
+    price1: Number(product.price1),
   }));
 
   return (

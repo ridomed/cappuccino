@@ -5,27 +5,15 @@ import { Minus, Plus, X, Trash2, ImageOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomerAvatar } from "@/components/shared/customer-avatar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useLocale } from "@/i18n/locale-provider";
 import { formatMessage } from "@/i18n/format";
 import { formatCurrency } from "@/lib/currency";
-import { cn } from "@/lib/utils";
-import { PAYMENT_LINE_METHODS } from "@/features/pos/schema";
 import type { PosCustomer } from "@/features/pos/queries";
-import type { CartLine, PosPaymentMethod } from "./types";
+import type { CartLine } from "./types";
 
 export function CartPanel({
   customer,
-  customerBalance,
   lines,
-  method,
-  paidAmount,
   isPending,
   onChangeCustomer,
   onClearCustomer,
@@ -33,15 +21,10 @@ export function CartPanel({
   onRemove,
   onClearCart,
   onHold,
-  onSetMethod,
-  onSetPaidAmount,
   onPay,
 }: {
   customer: PosCustomer;
-  customerBalance: number;
   lines: CartLine[];
-  method: PosPaymentMethod;
-  paidAmount: string;
   isPending: boolean;
   onChangeCustomer: () => void;
   onClearCustomer: () => void;
@@ -49,8 +32,6 @@ export function CartPanel({
   onRemove: (productId: string) => void;
   onClearCart: () => void;
   onHold: () => void;
-  onSetMethod: (method: PosPaymentMethod) => void;
-  onSetPaidAmount: (value: string) => void;
   onPay: () => void;
 }) {
   const { locale, t } = useLocale();
@@ -59,15 +40,6 @@ export function CartPanel({
     (sum, line) => sum + line.quantity * line.product.price1,
     0,
   );
-  const paid = Number(paidAmount) || 0;
-  const remaining = Math.max(0, total - paid);
-  const isBalance = method === "BALANCE";
-  // من الرصيد can't overpay itself; every other method can, and on Pay the
-  // cashier is asked whether the excess extends the customer's balance.
-  const excess = isBalance ? 0 : Math.max(0, paid - total);
-  const balanceShort = isBalance && paid > customerBalance + 0.005;
-
-  const methodLabels = t.statusLabels.paymentMethod;
 
   return (
     <aside className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
@@ -209,69 +181,6 @@ export function CartPanel({
         <div className="flex justify-between text-base font-bold">
           <span>{t.pos.total}</span>
           <span className="tabular-nums">{formatCurrency(total, locale)}</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">
-              {t.pos.paymentMethodLabel}
-            </label>
-            <Select
-              value={method}
-              onValueChange={(value) => onSetMethod(value as PosPaymentMethod)}
-            >
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue>
-                  {(value: string) =>
-                    methodLabels[value as PosPaymentMethod] ?? value
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {PAYMENT_LINE_METHODS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {methodLabels[m]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">
-              {t.pos.paidAmountLabel}
-            </label>
-            <Input
-              inputMode="decimal"
-              value={paidAmount}
-              onChange={(e) => onSetPaidAmount(e.target.value)}
-              className="h-9"
-            />
-          </div>
-        </div>
-
-        {isBalance && (
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">
-              {t.invoices.availableBalance}
-            </span>
-            <span
-              className={cn(
-                "font-semibold tabular-nums",
-                balanceShort && "text-destructive",
-              )}
-            >
-              {formatCurrency(customerBalance, locale)}
-            </span>
-          </div>
-        )}
-
-        <div className="flex justify-between text-xs">
-          <span className="text-muted-foreground">
-            {excess > 0 ? t.pos.changeLabel : t.pos.remainingLabel}
-          </span>
-          <span className="font-semibold tabular-nums">
-            {formatCurrency(excess > 0 ? excess : remaining, locale)}
-          </span>
         </div>
 
         <Button

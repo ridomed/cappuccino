@@ -26,10 +26,6 @@ export default auth((req) => {
   if (pathname === "/login" && isLoggedIn) {
     return NextResponse.redirect(new URL("/choose", req.nextUrl));
   }
-
-  if (!isPrivate(pathname) && pathname !== "/login") {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
-  }
 });
 
 export const config = {
@@ -39,11 +35,5 @@ export const config = {
     "/caisse/:path*",
     "/choose",
     "/login",
-    "/",
-    "/products/:path*",
-    "/categories/:path*",
-    "/cart",
-    "/about",
-    "/order-confirmation/:path*",
   ],
 };
